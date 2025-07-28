@@ -1,0 +1,28 @@
+---
+- name: Check available disk space
+  ansible.builtin.setup:
+    filter: ansible_mounts
+  register: disk_info
+
+- name: Verify minimum disk space
+  ansible.builtin.assert:
+    that:
+      - item.size_available > 1073741824  # 1GB in bytes
+    fail_msg: "Insufficient disk space on {{ item.mount }}"
+  loop: "{{ ansible_mounts }}"
+  when: item.mount in ['/var', '/opt', '/etc']
+
+- name: Check system memory
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb > 512
+    fail_msg: "Insufficient memory: {{ ansible_memtotal_mb }}MB (minimum 512MB required)"
+
+- name: Verify network connectivity to Consul servers
+  ansible.builtin.wait_for:
+    host: "{{ item }}"
+    port: 8500
+    timeout: 10
+  loop: "{{ consul_servers | default([]) }}"
+  failed_when: false
+  register: consul_connectivity

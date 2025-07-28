@@ -1,0 +1,41 @@
+---
+- name: Check service status
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+  register: service_status_check
+  loop:
+    - consul
+    - node_exporter
+    - systemd_exporter
+    - process_exporter
+    - cadvisor
+    - clickhouse_exporter
+  failed_when: false
+  when: item in (exporters | default([])) or item == 'consul'
+
+- name: Set service status facts
+  ansible.builtin.set_fact:
+    installed_services: "{{ service_status_check.results | selectattr('status', 'defined') | selectattr('status.ActiveState', 'equalto', 'active') | map(attribute='item') | list }}"
+    failed_services: "{{ service_status_check.results | selectattr('status', 'defined') | selectattr('status.ActiveState', 'equalto', 'failed') | map(attribute='item') | list }}"
+
+- name: Check metrics endpoints
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:{{ exporter_ports[item] }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 5
+  loop: "{{ installed_services | default([]) }}"
+  when: 
+    - item != 'consul'
+    - exporter_ports[item] is defined
+  register: metrics_check
+  failed_when: false
+
+- name: Check Consul API
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:8500/v1/agent/self"
+    method: GET
+    timeout: 10
+  register: consul_api_check
+  failed_when: false
+  when: "'consul' in installed_services"

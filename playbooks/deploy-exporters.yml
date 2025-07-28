@@ -1,0 +1,97 @@
+---
+
+  - name: Deploy Monitoring Infrastructure - Exporters, Consul, Services
+    hosts: all
+    become: true
+    gather_facts: true
+  
+    vars:
+      # Installation control flags
+      skip_consul: false
+      skip_exporters: false
+      skip_health_checks: false
+    
+      # Force reinstallation flags
+      force_reinstall_all: false
+    
+    pre_tasks:
+      - name: Validate inventory configuration
+        ansible.builtin.assert:
+          that:
+            - inventory_hostname is defined
+            - ansible_host is defined
+            - exporters is defined
+          fail_msg: "Required variables not defined for {{ inventory_hostname }}"
+          success_msg: "Inventory configuration is valid"
+        tags: [validation, always]
+
+      - name: Display deployment plan
+        ansible.builtin.debug:
+          msg:
+            - "=== DEPLOYMENT PLAN FOR {{ inventory_hostname | upper }} ==="
+            - "Host: {{ ansible_host }}"
+            - "Groups: {{ group_names }}"
+            - "Exporters: {{ exporters | default([]) }}"
+            - "Environment: {{ environment | default('production') }}"
+            - "Datacenter: {{ datacenter | default('dc1') }}"
+            - "Skip Consul: {{ skip_consul }}"
+            - "Skip Exporters: {{ skip_exporters }}"
+        tags: [validation, always]
+
+      - name: Check system requirements
+        ansible.builtin.include_tasks: tasks/system_checks.yml
+        tags: [validation, system_checks]
+
+    tasks:
+      # Consul Agent Installation
+      - name: Install Consul Agent
+        ansible.builtin.include_role:
+          name: consul
+        when: not skip_consul
+        tags: [consul, infrastructure]
+
+      # Core Exporters Installation
+      - name: Install Prometheus Exporters
+        ansible.builtin.include_role:
+          name: exporters
+        when: not skip_exporters
+        tags: [exporters, monitoring]
+
+      # Service Registration in Consul
+      - name: Register services in Consul
+        ansible.builtin.include_tasks: tasks/consul_registration.yml
+        when: 
+          - not skip_consul
+          - enable_consul_registration | default(true)
+        tags: [consul_registration, service_discovery]
+
+    post_tasks:
+      - name: Perform health checks
+        ansible.builtin.include_tasks: tasks/health_checks.yml
+        when: not skip_health_checks
+        tags: [health_checks, validation]
+
+      - name: Generate deployment summary
+        ansible.builtin.include_tasks: tasks/deployment_summary.yml
+        tags: [summary, always]
+
+      - name: Display deployment results
+        ansible.builtin.debug:
+          msg:
+            - "=== DEPLOYMENT COMPLETED FOR {{ inventory_hostname | upper }} ==="
+            - "Status: {{ deployment_status | default('Unknown') }}"
+            - "Installed services: {{ installed_services | default([]) | length }}"
+            - "Failed services: {{ failed_services | default([]) | length }}"
+            - "Consul registered: {{ consul_registered_services | default([]) | length }}"
+        tags: [summary, always]
+
+    handlers:
+      - name: Restart all exporters
+        ansible.builtin.systemd:
+          name: "{{ item }}"
+          state: restarted
+        loop: "{{ installed_services | default([]) }}"
+        when: item != 'consul'
+        listen: "restart all exporters"
+
+

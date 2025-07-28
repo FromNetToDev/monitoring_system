@@ -1,0 +1,53 @@
+---
+- name: Generate deployment timestamp
+  ansible.builtin.set_fact:
+    deployment_timestamp: "{{ ansible_date_time.iso8601 }}"
+
+- name: Determine deployment status
+  ansible.builtin.set_fact:
+    deployment_status: >-
+      {% if failed_services | default([]) | length == 0 -%}
+      SUCCESS
+      {%- elif installed_services | default([]) | length > 0 -%}
+      PARTIAL
+      {%- else -%}
+      FAILED
+      {%- endif %}
+
+- name: Create deployment log
+  ansible.builtin.copy:
+    content: |
+      # Monitoring Deployment Summary
+      
+      **Host:** {{ inventory_hostname }}
+      **IP:** {{ ansible_host }}
+      **Timestamp:** {{ deployment_timestamp }}
+      **Status:** {{ deployment_status }}
+      **Environment:** {{ environment | default('production') }}
+      **Datacenter:** {{ datacenter | default('dc1') }}
+      
+      ## Installed Services
+      {% for service in installed_services | default([]) %}
+      - {{ service }}
+      {% endfor %}
+      
+      ## Failed Services
+      {% for service in failed_services | default([]) %}
+      - {{ service }}
+      {% endfor %}
+      
+      ## Consul Registered Services
+      {% for service in consul_registered_services | default([]) %}
+      - 🔗 {{ service }}
+      {% endfor %}
+      
+      ## Configuration
+      - **Exporters requested:** {{ exporters | default([]) | join(', ') }}
+      - **Groups:** {{ group_names | join(', ') }}
+      - **Custom tags:** {{ custom_tags | default([]) | join(', ') }}
+      
+    dest: "/var/log/monitoring-deployment-{{ inventory_hostname }}.log"
+    owner: root
+    group: root
+    mode: '0644'
+  when: deployment_status is defined
