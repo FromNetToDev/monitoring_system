@@ -1,0 +1,34 @@
+[Unit]
+Description=Prometheus Smartctl Exporter
+Documentation=https://github.com/prometheus-community/smartctl_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smartctl_exporter
+Group=smartctl_exporter
+
+ExecStart=/usr/local/bin/smartctl_exporter \
+  --web.listen-address=":{{ exporter_ports.smartctl_exporter | default(9633) }}" \
+  --log.level={{ exporter_log_level }}
+
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smartctl_exporter
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+

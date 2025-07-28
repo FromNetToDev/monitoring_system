@@ -1,0 +1,114 @@
+---
+# roles/exporters/defaults/main.yml
+
+# Global exporter settings
+enable_consul_registration: true
+exporter_backup_configs: true
+exporter_log_level: "info"
+environment: "production"
+
+# Force reinstallation flags
+node_exporter_force_reinstall: false
+systemd_exporter_force_reinstall: false
+process_exporter_force_reinstall: false
+cadvisor_force_reload_image: false
+clickhouse_exporter_force_reinstall: false
+
+# Node Exporter
+node_exporter_version: "1.6.1"
+node_exporter_user: "node_exporter"
+node_exporter_group: "node_exporter"
+node_exporter_binary_path: "/usr/local/bin/node_exporter"
+node_exporter_config_path: "/etc/node_exporter"
+node_exporter_data_path: "/var/lib/node_exporter"
+node_exporter_log_path: "/var/log/node_exporter"
+node_exporter_extra_args: []
+node_exporter_config: {}
+
+# Systemd Exporter  
+systemd_exporter_version: "0.6.0"
+systemd_exporter_user: "systemd_exporter"
+systemd_exporter_group: "systemd_exporter"
+systemd_exporter_binary_path: "/usr/local/bin/systemd_exporter"
+systemd_exporter_extra_args: []
+
+# Process Exporter
+process_exporter_version: "0.7.10"
+process_exporter_user: "process_exporter"
+process_exporter_group: "process_exporter"
+process_exporter_binary_path: "/usr/local/bin/process_exporter"
+process_exporter_config_path: "/etc/process_exporter"
+process_exporter_config_file: "{{ process_exporter_config_path }}/config.yml"
+
+# Default process monitoring (can be overridden)
+process_exporter_processes:
+  - name: "sshd"
+    cmdline:
+      - "sshd"
+  - name: "systemd"
+    cmdline:
+      - "systemd"
+
+# cAdvisor
+cadvisor_version: "v0.47.2"
+cadvisor_port: 8020
+cadvisor_image: "gcr.io/cadvisor/cadvisor"
+cadvisor_log_path: "/var/log/cadvisor"
+cadvisor_config: {}
+cadvisor_extra_args: []
+cadvisor_docker_volumes:
+  - "/:/rootfs:ro"
+  - "/var/run:/var/run:rw"
+  - "/sys:/sys:ro"
+  - "/var/lib/docker/:/var/lib/docker:ro"
+  - "/dev/disk/:/dev/disk:ro"
+
+# ClickHouse Exporter
+clickhouse_exporter_version: "0.1.0"
+clickhouse_exporter_user: "clickhouse_exporter"
+clickhouse_exporter_group: "clickhouse_exporter"
+clickhouse_exporter_binary_path: "/usr/local/bin/clickhouse_exporter"
+clickhouse_exporter_port: 9363
+clickhouse_server_host: "localhost"
+clickhouse_server_port: 8123
+clickhouse_server_user: "default"
+clickhouse_server_password: ""
+clickhouse_server_database: "default"
+check_clickhouse_server: true
+
+# Smartctl Exporter
+smartctl_exporter_version: "0.12.0"
+smartctl_exporter_user: "smartctl_exporter"
+smartctl_exporter_group: "smartctl_exporter"
+smartctl_exporter_binary_path: "/usr/local/bin/smartctl_exporter"
+smartctl_exporter_port: 9633
+
+# Redfish Exporter
+redfish_exporter_version: "1.0-1"
+redfish_exporter_port: 9610
+redfish_exporter_config_path: "/etc/redfish_exporter"
+
+# Default exporter ports
+exporter_ports:
+  node_exporter: 9100
+  systemd_exporter: 9558
+  process_exporter: 9256
+  cadvisor: 8020
+  clickhouse_exporter: 9363
+  smartctl_exporter: 9633
+  redfish_exporter: 9610
+
+# Consul service registration
+consul_service_tags:
+  - "{{ environment }}"
+  - "monitoring"
+  - "prometheus"
+  - "exporter"
+
+consul_check_interval: "30s"
+consul_check_timeout: "10s"
+consul_deregister_critical_after: "10m"
+
+# Custom tags (merged with default tags)
+custom_tags: []
+

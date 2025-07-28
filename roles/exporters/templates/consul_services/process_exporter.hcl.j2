@@ -1,0 +1,39 @@
+service {
+  name = "process_exporter"
+  id   = "process_exporter_{{ inventory_hostname }}"
+  
+  address = "{{ ansible_host }}"
+  port    = {{ exporter_ports.process_exporter }}
+  
+  tags = [
+    {% for group in group_names %}
+    "{{ group }}",
+    {% endfor %}
+    {% for tag in consul_service_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    {% for tag in custom_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    "process_exporter", "processes"
+  ]
+
+  meta = {
+    version      = "{{ process_exporter_version | default('latest') }}"
+    datacenter   = "{{ datacenter | default('dc1') }}"
+    environment  = "{{ environment }}"
+    ansible_host = "{{ inventory_hostname }}"
+    installed_at = "{{ ansible_date_time.iso8601 }}"
+  }
+
+  check {
+    id       = "process_exporter_metrics"
+    name     = "Process Exporter Metrics Endpoint"
+    http     = "http://{{ ansible_host }}:{{ exporter_ports.process_exporter }}/metrics"
+    method   = "GET"
+    interval = "{{ consul_check_interval }}"
+    timeout  = "{{ consul_check_timeout }}"
+    
+    deregister_critical_service_after = "{{ consul_deregister_critical_after }}"
+  }
+}

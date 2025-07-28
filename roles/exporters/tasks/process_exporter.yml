@@ -1,0 +1,85 @@
+---
+- name: Process Exporter | Create system user
+  ansible.builtin.user:
+    name: "{{ process_exporter_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/process_exporter
+    create_home: false
+    comment: "Process Exporter service user"
+  tags: [process_exporter, users]
+
+- name: Process Exporter | Create directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ process_exporter_user }}"
+    group: "{{ process_exporter_group }}"
+    mode: '0755'
+  loop:
+    - "{{ process_exporter_config_path }}"
+    - /var/lib/process_exporter
+  tags: [process_exporter, directories]
+
+- name: Process Exporter | Copy binary from repository
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../repo/bin/process-exporter"
+    dest: "{{ process_exporter_binary_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+    backup: true
+  notify: restart process_exporter
+  tags: [process_exporter, binary]
+
+- name: Process Exporter | Create configuration
+  ansible.builtin.template:
+    src: process-exporter.yml.j2
+    dest: "{{ process_exporter_config_file }}"
+    owner: "{{ process_exporter_user }}"
+    group: "{{ process_exporter_group }}"
+    mode: '0644'
+    backup: true
+  notify: restart process_exporter
+  tags: [process_exporter, configuration]
+
+- name: Process Exporter | Create systemd service
+  ansible.builtin.template:
+    src: process_exporter.service.j2
+    dest: /etc/systemd/system/process_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify:
+    - reload systemd
+    - restart process_exporter
+  tags: [process_exporter, systemd]
+
+- name: Process Exporter | Start and enable service
+  ansible.builtin.systemd:
+    name: process_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: [process_exporter, service]
+
+- name: Process Exporter | Wait for service to be ready
+  ansible.builtin.wait_for:
+    port: "{{ exporter_ports.process_exporter }}"
+    host: "{{ ansible_host }}"
+    delay: 2
+    timeout: 30
+  tags: [process_exporter, health_check]
+
+- name: Process Exporter | Register service in Consul
+  ansible.builtin.template:
+    src: consul_services/process_exporter.hcl.j2
+    dest: /etc/consul.d/process_exporter.hcl
+    owner: consul
+    group: consul
+    mode: '0644'
+    backup: true
+  notify: reload consul
+  when: enable_consul_registration | default(true)
+  tags: [process_exporter, consul_registration]

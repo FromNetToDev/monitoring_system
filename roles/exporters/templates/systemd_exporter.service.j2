@@ -1,0 +1,37 @@
+[Unit]
+Description=Prometheus Systemd Exporter
+Documentation=https://github.com/prometheus-community/systemd_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ systemd_exporter_user }}
+Group={{ systemd_exporter_group }}
+
+ExecStart={{ systemd_exporter_binary_path }} \
+  --web.listen-address=":{{ exporter_ports.systemd_exporter }}" \
+  --log.level={{ exporter_log_level }} \
+{% for arg in systemd_exporter_extra_args %}
+  {{ arg }} \
+{% endfor %}
+
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=systemd_exporter
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+

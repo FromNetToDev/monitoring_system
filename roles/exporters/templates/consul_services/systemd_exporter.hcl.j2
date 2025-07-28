@@ -1,0 +1,39 @@
+service {
+  name = "systemd_exporter"
+  id   = "systemd_exporter_{{ inventory_hostname }}"
+  
+  address = "{{ ansible_host }}"
+  port    = {{ exporter_ports.systemd_exporter }}
+  
+  tags = [
+    {% for group in group_names %}
+    "{{ group }}",
+    {% endfor %}
+    {% for tag in consul_service_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    {% for tag in custom_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    "systemd_exporter", "systemd"
+  ]
+
+  meta = {
+    version      = "{{ systemd_exporter_version | default('latest') }}"
+    datacenter   = "{{ datacenter | default('dc1') }}"
+    environment  = "{{ environment }}"
+    ansible_host = "{{ inventory_hostname }}"
+    installed_at = "{{ ansible_date_time.iso8601 }}"
+  }
+
+  check {
+    id       = "systemd_exporter_metrics"
+    name     = "Systemd Exporter Metrics Endpoint"
+    http     = "http://{{ ansible_host }}:{{ exporter_ports.systemd_exporter }}/metrics"
+    method   = "GET"
+    interval = "{{ consul_check_interval }}"
+    timeout  = "{{ consul_check_timeout }}"
+    
+    deregister_critical_service_after = "{{ consul_deregister_critical_after }}"
+  }
+}

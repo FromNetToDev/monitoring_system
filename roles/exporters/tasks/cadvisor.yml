@@ -1,0 +1,167 @@
+---
+# roles/exporters/tasks/cadvisor.yml
+- name: cAdvisor | Check Docker installation
+  ansible.builtin.command: docker --version
+  register: docker_version_check
+  failed_when: false
+  changed_when: false
+  tags: [cadvisor, docker, validation]
+
+- name: cAdvisor | Install Docker if not present
+  block:
+    - name: cAdvisor | Update package cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: cAdvisor | Install Docker packages (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - docker-compose
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: cAdvisor | Install Docker packages (RedHat/CentOS)
+      ansible.builtin.yum:
+        name:
+          - docker
+          - docker-compose
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: cAdvisor | Start and enable Docker service
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
+        daemon_reload: true
+  when: docker_version_check.rc != 0
+  tags: [cadvisor, docker, installation]
+
+- name: cAdvisor | Verify Docker is running
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+  tags: [cadvisor, docker, validation]
+
+- name: cAdvisor | Create directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /opt/docker-images
+    - /etc/cadvisor
+    - /var/log/cadvisor
+  tags: [cadvisor, directories]
+
+- name: cAdvisor | Copy Docker image from repository
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../repo/docker_images/cadvisor.tar"
+    dest: /opt/docker-images/cadvisor.tar
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  register: cadvisor_image_copy
+  tags: [cadvisor, docker_image]
+
+- name: cAdvisor | Load Docker image
+  ansible.builtin.command: docker load -i /opt/docker-images/cadvisor.tar
+  register: docker_load_result
+  changed_when: "'Loaded image' in docker_load_result.stdout"
+  when: cadvisor_image_copy.changed or cadvisor_force_reload_image | default(false)
+  tags: [cadvisor, docker_image]
+
+- name: cAdvisor | Stop existing container if running
+  ansible.builtin.command: docker stop cadvisor
+  failed_when: false
+  changed_when: false
+  tags: [cadvisor, container_management]
+
+- name: cAdvisor | Remove existing container if exists
+  ansible.builtin.command: docker rm cadvisor
+  failed_when: false
+  changed_when: false
+  tags: [cadvisor, container_management]
+
+- name: cAdvisor | Create configuration file
+  ansible.builtin.template:
+    src: cadvisor.yml.j2
+    dest: /etc/cadvisor/config.yml
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify: restart cadvisor
+  when: cadvisor_config | default({}) | length > 0
+  tags: [cadvisor, configuration]
+
+- name: cAdvisor | Create systemd service
+  ansible.builtin.template:
+    src: cadvisor.service.j2
+    dest: /etc/systemd/system/cadvisor.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify:
+    - reload systemd
+    - restart cadvisor
+  tags: [cadvisor, systemd]
+
+- name: cAdvisor | Start and enable service
+  ansible.builtin.systemd:
+    name: cadvisor
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: [cadvisor, service]
+
+- name: cAdvisor | Wait for service to be ready
+  ansible.builtin.wait_for:
+    port: "{{ cadvisor_port }}"
+    host: "{{ ansible_host }}"
+    delay: 5
+    timeout: 60
+  tags: [cadvisor, health_check]
+
+- name: cAdvisor | Verify metrics endpoint
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:{{ cadvisor_port }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 10
+  register: cadvisor_metrics_check
+  retries: 3
+  delay: 10
+  tags: [cadvisor, health_check]
+
+- name: cAdvisor | Verify API endpoint
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:{{ cadvisor_port }}/api/v1.3/machine"
+    method: GET
+    status_code: 200
+    timeout: 10
+  register: cadvisor_api_check
+  retries: 3
+  delay: 5
+  failed_when: false
+  tags: [cadvisor, health_check]
+
+- name: cAdvisor | Register service in Consul
+  ansible.builtin.template:
+    src: consul_services/cadvisor.hcl.j2
+    dest: /etc/consul.d/cadvisor_exporter.hcl
+    owner: consul
+    group: consul
+    mode: '0644'
+    backup: true
+  notify: reload consul
+  when: enable_consul_registration | default(true)
+  tags: [cadvisor, consul_registration]
+

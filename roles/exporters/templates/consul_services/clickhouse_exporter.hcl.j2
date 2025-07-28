@@ -1,0 +1,80 @@
+service {
+  name = "clickhouse_exporter"
+  id   = "clickhouse_exporter_{{ inventory_hostname }}"
+  
+  address = "{{ ansible_host }}"
+  port    = {{ clickhouse_exporter_port }}
+  
+  tags = [
+    {% for group in group_names %}
+    "{{ group }}",
+    {% endfor %}
+    {% for tag in consul_service_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    {% for tag in custom_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    "clickhouse_exporter", "database"
+  ]
+
+  meta = {
+    version           = "{{ clickhouse_exporter_version }}"
+    datacenter        = "{{ datacenter | default('dc1') }}"
+    environment       = "{{ environment }}"
+    ansible_host      = "{{ inventory_hostname }}"
+    installed_at      = "{{ ansible_date_time.iso8601 }}"
+    clickhouse_host   = "{{ clickhouse_server_host }}"
+    clickhouse_port   = "{{ clickhouse_server_port }}"
+    clickhouse_db     = "{{ clickhouse_server_database }}"
+  }
+
+  check {
+    id       = "clickhouse_exporter_metrics"
+    name     = "ClickHouse Exporter Metrics Endpoint"
+    http     = "http://{{ ansible_host }}:{{ clickhouse_exporter_port }}/metrics"
+    method   = "GET"
+    interval = "{{ consul_check_interval }}"
+    timeout  = "{{ consul_check_timeout }}"
+    
+    deregister_critical_service_after = "{{ consul_deregister_critical_after }}"
+    
+    header {
+      User-Agent = ["Consul Health Check"]
+    }
+  }
+
+  {% if check_clickhouse_server %}
+  check {
+    id       = "clickhouse_server_ping"
+    name     = "ClickHouse Server Ping"
+    http     = "http://{{ clickhouse_server_host }}:{{ clickhouse_server_port }}/ping"
+    method   = "GET"
+    interval = "60s"
+    timeout  = "10s"
+    
+    deregister_critical_service_after = "15m"
+  }
+
+  check {
+    id       = "clickhouse_server_query"
+    name     = "ClickHouse Server Query Test"
+    http     = "http://{{ clickhouse_server_host }}:{{ clickhouse_server_port }}/?query=SELECT%201"
+    method   = "GET"
+    interval = "120s"
+    timeout  = "15s"
+    
+    deregister_critical_service_after = "15m"
+  }
+  {% endif %}
+
+  {% if enable_process_monitoring | default(false) %}
+  check {
+    id       = "clickhouse_exporter_process"
+    name     = "ClickHouse Exporter Process"
+    args     = ["pgrep", "-f", "clickhouse_exporter"]
+    interval = "30s"
+    timeout  = "5s"
+  }
+  {% endif %}
+}

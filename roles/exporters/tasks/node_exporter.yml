@@ -1,0 +1,118 @@
+---
+# roles/exporters/tasks/node_exporter.yml
+- name: Node Exporter | Create system user
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/node_exporter
+    create_home: false
+    comment: "Node Exporter service user"
+  tags: [node_exporter, users]
+
+- name: Node Exporter | Create directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: '0755'
+  loop:
+    - /var/lib/node_exporter
+    - /etc/node_exporter
+  tags: [node_exporter, directories]
+
+- name: Node Exporter | Check if binary exists
+  ansible.builtin.stat:
+    path: "{{ node_exporter_binary_path }}"
+  register: node_exporter_binary_stat
+  tags: [node_exporter, validation]
+
+- name: Node Exporter | Copy binary from repository
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../repo/bin/node_exporter"
+    dest: "{{ node_exporter_binary_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+    backup: true
+  notify: restart node_exporter
+  when: not node_exporter_binary_stat.stat.exists or node_exporter_force_reinstall | default(false)
+  tags: [node_exporter, binary]
+
+- name: Node Exporter | Verify binary installation
+  ansible.builtin.command: "{{ node_exporter_binary_path }} --version"
+  register: node_exporter_version_check
+  changed_when: false
+  failed_when: node_exporter_version_check.rc != 0
+  tags: [node_exporter, validation]
+
+- name: Node Exporter | Display version
+  ansible.builtin.debug:
+    msg: "Node Exporter version: {{ node_exporter_version_check.stdout_lines[0] | default('Unknown') }}"
+  tags: [node_exporter, validation]
+
+- name: Node Exporter | Create configuration file
+  ansible.builtin.template:
+    src: node_exporter.yml.j2
+    dest: /etc/node_exporter/config.yml
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: '0644'
+    backup: true
+  notify: restart node_exporter
+  when: node_exporter_config | default({}) | length > 0
+  tags: [node_exporter, configuration]
+
+- name: Node Exporter | Create systemd service
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify:
+    - reload systemd
+    - restart node_exporter
+  tags: [node_exporter, systemd]
+
+- name: Node Exporter | Start and enable service
+  ansible.builtin.systemd:
+    name: node_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: [node_exporter, service]
+
+- name: Node Exporter | Wait for service to be ready
+  ansible.builtin.wait_for:
+    port: "{{ exporter_ports.node_exporter }}"
+    host: "{{ ansible_host }}"
+    delay: 2
+    timeout: 30
+  tags: [node_exporter, health_check]
+
+- name: Node Exporter | Verify metrics endpoint
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:{{ exporter_ports.node_exporter }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 10
+  register: node_exporter_metrics_check
+  retries: 3
+  delay: 5
+  tags: [node_exporter, health_check]
+
+- name: Node Exporter | Register service in Consul
+  ansible.builtin.template:
+    src: consul_services/node_exporter.hcl.j2
+    dest: /etc/consul.d/node_exporter.hcl
+    owner: consul
+    group: consul
+    mode: '0644'
+    backup: true
+  notify: reload consul
+  when: enable_consul_registration | default(true)
+  tags: [node_exporter, consul_registration]
+

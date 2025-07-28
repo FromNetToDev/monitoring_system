@@ -1,0 +1,37 @@
+[Unit]
+Description=Consul Agent
+Documentation=https://consul.io/docs
+After=network-online.target
+Wants=network-online.target
+ConditionFileNotEmpty={{ consul_config_dir }}/consul.hcl
+
+[Service]
+Type=notify
+User={{ consul_user }}
+Group={{ consul_group }}
+
+ExecStart={{ consul_binary_path }} agent -config-dir={{ consul_config_dir }}
+ExecReload=/bin/kill -HUP $MAINPID
+
+KillMode=process
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+# Output to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=consul
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ consul_data_dir }} {{ consul_log_dir }}
+
+# Resource limits
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target

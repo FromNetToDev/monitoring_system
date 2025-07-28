@@ -1,0 +1,56 @@
+---
+# roles/exporters/tasks/smartctl_exporter.yml
+- name: Smartctl Exporter | Create system user
+  ansible.builtin.user:
+    name: smartctl_exporter
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/smartctl_exporter
+    create_home: false
+    comment: "Smartctl Exporter service user"
+  tags: [smartctl_exporter, users]
+
+- name: Smartctl Exporter | Copy binary from repository
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../repo/bin/smartctl_exporter"
+    dest: /usr/local/bin/smartctl_exporter
+    owner: root
+    group: root
+    mode: '0755'
+    backup: true
+  notify: restart smartctl_exporter
+  tags: [smartctl_exporter, binary]
+
+- name: Smartctl Exporter | Create systemd service
+  ansible.builtin.template:
+    src: smartctl_exporter.service.j2
+    dest: /etc/systemd/system/smartctl_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify:
+    - reload systemd
+    - restart smartctl_exporter
+  tags: [smartctl_exporter, systemd]
+
+- name: Smartctl Exporter | Start and enable service
+  ansible.builtin.systemd:
+    name: smartctl_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: [smartctl_exporter, service]
+
+- name: Smartctl Exporter | Register service in Consul
+  ansible.builtin.template:
+    src: consul_services/smartctl_exporter.hcl.j2
+    dest: /etc/consul.d/smartctl_exporter.hcl
+    owner: consul
+    group: consul
+    mode: '0644'
+    backup: true
+  notify: reload consul
+  when: enable_consul_registration | default(true)
+  tags: [smartctl_exporter, consul_registration]
+

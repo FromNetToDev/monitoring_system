@@ -1,0 +1,43 @@
+[Unit]
+Description=Prometheus Node Exporter
+Documentation=https://github.com/prometheus/node_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ node_exporter_user }}
+Group={{ node_exporter_group }}
+
+ExecStart={{ node_exporter_binary_path }} \
+  --web.listen-address=":{{ exporter_ports.node_exporter }}" \
+  --path.rootfs=/host \
+  --log.level={{ exporter_log_level }} \
+{% if node_exporter_config | length > 0 %}
+  --config.file={{ node_exporter_config_path }}/config.yml \
+{% endif %}
+{% for arg in node_exporter_extra_args %}
+  {{ arg }} \
+{% endfor %}
+
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=node_exporter
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ node_exporter_data_path }}
+
+# Resource limits
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target
+

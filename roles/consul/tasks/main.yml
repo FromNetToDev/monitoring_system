@@ -1,0 +1,127 @@
+---
+- name: Consul | Validate configuration
+  ansible.builtin.assert:
+    that:
+      - consul_servers is defined
+      - consul_servers | length > 0
+      - datacenter is defined
+    fail_msg: "Consul servers and datacenter must be defined"
+    success_msg: "Consul configuration is valid"
+  tags: [consul, validation]
+
+- name: Consul | Display configuration
+  ansible.builtin.debug:
+    msg:
+      - "Datacenter: {{ datacenter }}"
+      - "Consul servers: {{ consul_servers }}"
+      - "Reset data: {{ reset_consul_data | default(false) }}"
+      - "Clear config: {{ clear_consul_config | default(false) }}"
+  tags: [consul, validation]
+
+# Cleanup tasks (if requested)
+- name: Consul | Stop service before cleanup
+  ansible.builtin.systemd:
+    name: consul
+    state: stopped
+  failed_when: false
+  when: reset_consul_data | default(false) or clear_consul_config | default(false)
+  tags: [consul, cleanup]
+
+- name: Consul | Clean data directory
+  ansible.builtin.file:
+    path: "{{ consul_data_dir }}"
+    state: absent
+  when: reset_consul_data | default(false)
+  tags: [consul, cleanup]
+
+- name: Consul | Clean configuration directory
+  ansible.builtin.file:
+    path: "{{ consul_config_dir }}"
+    state: absent
+  when: clear_consul_config | default(false)
+  tags: [consul, cleanup]
+
+# User and directories setup
+- name: Consul | Create system user
+  ansible.builtin.user:
+    name: "{{ consul_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ consul_data_dir }}"
+    create_home: false
+    comment: "Consul service user"
+  tags: [consul, users]
+
+- name: Consul | Create directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default(consul_user) }}"
+    group: "{{ item.group | default(consul_group) }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - path: "{{ consul_config_dir }}"
+      mode: "0750"
+    - path: "{{ consul_data_dir }}"
+      mode: "0750"
+    - path: "{{ consul_log_dir }}"
+      mode: "0755"
+    - path: "/etc/consul.d/services"
+      mode: "0750"
+  tags: [consul, directories]
+
+# Binary installation
+- name: Consul | Copy binary from repository
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../repo/bin/consul"
+    dest: "{{ consul_binary_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+    backup: true
+  notify: "restart consul"
+  tags: [consul, binary]
+
+# Configuration
+- name: Consul | Generate main configuration
+  ansible.builtin.template:
+    src: consul.hcl.j2
+    dest: "{{ consul_config_dir }}/consul.hcl"
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: '0640'
+    backup: true
+  notify: "restart consul"
+  tags: [consul, configuration]
+
+# Systemd service
+- name: Consul | Create systemd service
+  ansible.builtin.template:
+    src: consul.service.j2
+    dest: /etc/systemd/system/consul.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify:
+    - "reload systemd"
+    - "restart consul"
+  tags: [consul, systemd]
+
+# Service management
+- name: Consul | Start and enable service
+  ansible.builtin.systemd:
+    name: consul
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: [consul, service]
+
+# Health checks
+- name: Consul | Wait for Consul API to be ready
+  ansible.builtin.wait_for:
+    port: "{{ consul_ports.http }}"
+    host: "{{ ansible_host }}"
+    delay: 5
+    timeout: 60
+  tags: [consul, health_check]

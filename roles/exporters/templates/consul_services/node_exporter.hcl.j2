@@ -1,0 +1,64 @@
+service {
+  name = "node_exporter"
+  id   = "node_exporter_{{ inventory_hostname }}"
+  
+  address = "{{ ansible_host }}"
+  port    = {{ exporter_ports.node_exporter }}
+  
+  tags = [
+    {% for group in group_names %}
+    "{{ group }}",
+    {% endfor %}
+    {% for tag in consul_service_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    {% for tag in custom_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    "node_exporter"
+  ]
+
+  meta = {
+    version      = "{{ node_exporter_version }}"
+    datacenter   = "{{ datacenter | default('dc1') }}"
+    environment  = "{{ environment }}"
+    ansible_host = "{{ inventory_hostname }}"
+    installed_at = "{{ ansible_date_time.iso8601 }}"
+  }
+
+  check {
+    id       = "node_exporter_metrics"
+    name     = "Node Exporter Metrics Endpoint"
+    http     = "http://{{ ansible_host }}:{{ exporter_ports.node_exporter }}/metrics"
+    method   = "GET"
+    interval = "{{ consul_check_interval }}"
+    timeout  = "{{ consul_check_timeout }}"
+    
+    deregister_critical_service_after = "{{ consul_deregister_critical_after }}"
+    
+    header {
+      User-Agent = ["Consul Health Check"]
+    }
+  }
+
+  check {
+    id       = "node_exporter_ready"
+    name     = "Node Exporter Ready"
+    http     = "http://{{ ansible_host }}:{{ exporter_ports.node_exporter }}/"
+    method   = "GET"
+    interval = "60s"
+    timeout  = "5s"
+    
+    deregister_critical_service_after = "{{ consul_deregister_critical_after }}"
+  }
+
+  {% if enable_process_monitoring | default(false) %}
+  check {
+    id       = "node_exporter_process"
+    name     = "Node Exporter Process"
+    args     = ["pgrep", "-f", "node_exporter"]
+    interval = "30s"
+    timeout  = "5s"
+  }
+  {% endif %}
+}

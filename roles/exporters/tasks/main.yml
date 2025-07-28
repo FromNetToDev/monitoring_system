@@ -1,0 +1,79 @@
+---
+# roles/exporters/tasks/main.yml
+- name: Validate exporters configuration
+  ansible.builtin.assert:
+    that:
+      - exporters is defined
+      - exporters is iterable
+    fail_msg: "Variable 'exporters' must be defined and be a list"
+    success_msg: "Exporters configuration is valid"
+  tags: [validation, exporters]
+
+- name: Set fact for selected exporters
+  ansible.builtin.set_fact:
+    selected_exporters: "{{ exporters | default([]) | intersect(available_exporters) }}"
+    invalid_exporters: "{{ exporters | default([]) | difference(available_exporters) }}"
+  vars:
+    available_exporters:
+      - node_exporter
+      - systemd_exporter
+      - process_exporter
+      - cadvisor
+      - clickhouse_exporter
+      - smartctl_exporter
+      - redfish_exporter
+  tags: [validation, exporters]
+
+- name: Warning about invalid exporters
+  ansible.builtin.debug:
+    msg: "WARNING: Invalid exporters specified: {{ invalid_exporters }}"
+  when: invalid_exporters | length > 0
+  tags: [validation, exporters]
+
+- name: Display selected exporters for installation
+  ansible.builtin.debug:
+    msg: "Installing exporters: {{ selected_exporters }}"
+  when: selected_exporters | length > 0
+  tags: [validation, exporters]
+
+# Binary exporters installation
+- name: Install node_exporter
+  ansible.builtin.include_tasks: node_exporter.yml
+  when: "'node_exporter' in selected_exporters"
+  tags: [node_exporter, binary_exporters]
+
+- name: Install systemd_exporter
+  ansible.builtin.include_tasks: systemd_exporter.yml
+  when: "'systemd_exporter' in selected_exporters"
+  tags: [systemd_exporter, binary_exporters]
+
+- name: Install process_exporter
+  ansible.builtin.include_tasks: process_exporter.yml
+  when: "'process_exporter' in selected_exporters"
+  tags: [process_exporter, binary_exporters]
+
+- name: Install smartctl_exporter
+  ansible.builtin.include_tasks: smartctl_exporter.yml
+  when: "'smartctl_exporter' in selected_exporters"
+  tags: [smartctl_exporter, binary_exporters]
+
+# Container exporters installation
+- name: Install cadvisor
+  ansible.builtin.include_tasks: cadvisor.yml
+  when: "'cadvisor' in selected_exporters"
+  tags: [cadvisor, container_exporters]
+
+# Post-installation tasks
+- name: Generate exporters summary
+  ansible.builtin.set_fact:
+    exporters_summary:
+      installed: "{{ selected_exporters }}"
+      skipped: "{{ available_exporters | difference(selected_exporters) }}"
+      invalid: "{{ invalid_exporters }}"
+  tags: [summary, exporters]
+
+- name: Display installation summary
+  ansible.builtin.debug:
+    var: exporters_summary
+  tags: [summary, exporters]
+

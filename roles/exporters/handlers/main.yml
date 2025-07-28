@@ -1,0 +1,110 @@
+---
+# Systemd handlers
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  listen: "reload systemd"
+
+# Node Exporter handlers
+- name: restart node_exporter
+  ansible.builtin.systemd:
+    name: node_exporter
+    state: restarted
+  listen: "restart node_exporter"
+
+- name: reload node_exporter
+  ansible.builtin.systemd:
+    name: node_exporter
+    state: reloaded
+  listen: "reload node_exporter"
+
+# Systemd Exporter handlers
+- name: restart systemd_exporter
+  ansible.builtin.systemd:
+    name: systemd_exporter
+    state: restarted
+  listen: "restart systemd_exporter"
+
+- name: reload systemd_exporter
+  ansible.builtin.systemd:
+    name: systemd_exporter
+    state: reloaded
+  listen: "reload systemd_exporter"
+
+# Process Exporter handlers
+- name: restart process_exporter
+  ansible.builtin.systemd:
+    name: process_exporter
+    state: restarted
+  listen: "restart process_exporter"
+
+- name: reload process_exporter
+  ansible.builtin.systemd:
+    name: process_exporter
+    state: reloaded
+  listen: "reload process_exporter"
+
+# cAdvisor handlers
+- name: restart cadvisor
+  ansible.builtin.systemd:
+    name: cadvisor
+    state: restarted
+  listen: "restart cadvisor"
+
+- name: reload cadvisor
+  ansible.builtin.systemd:
+    name: cadvisor
+    state: reloaded
+  listen: "reload cadvisor"
+
+# ClickHouse Exporter handlers
+- name: restart clickhouse_exporter
+  ansible.builtin.systemd:
+    name: clickhouse_exporter
+    state: restarted
+  listen: "restart clickhouse_exporter"
+
+- name: reload clickhouse_exporter
+  ansible.builtin.systemd:
+    name: clickhouse_exporter
+    state: reloaded
+  listen: "reload clickhouse_exporter"
+
+# Smartctl Exporter handlers
+- name: restart smartctl_exporter
+  ansible.builtin.systemd:
+    name: smartctl_exporter
+    state: restarted
+  listen: "restart smartctl_exporter"
+
+- name: reload smartctl_exporter
+  ansible.builtin.systemd:
+    name: smartctl_exporter
+    state: reloaded
+  listen: "reload smartctl_exporter"
+
+# Redfish Exporter handlers
+- name: restart redfish_exporter
+  ansible.builtin.systemd:
+    name: redfish_exporter
+    state: restarted
+  listen: "restart redfish_exporter"
+
+- name: reload redfish_exporter
+  ansible.builtin.systemd:
+    name: redfish_exporter
+    state: reloaded
+  listen: "reload redfish_exporter"
+
+# Consul handlers
+- name: reload consul
+  ansible.builtin.systemd:
+    name: consul
+    state: reloaded
+  listen: "reload consul"
+
+- name: restart consul
+  ansible.builtin.systemd:
+    name: consul
+    state: restarted
+  listen: "restart consul"

@@ -1,0 +1,72 @@
+---
+# Consul version and binary
+consul_version: "1.16.1"
+consul_binary_path: "/usr/local/bin/consul"
+consul_force_reinstall: false
+
+# User and group
+consul_user: "consul"
+consul_group: "consul"
+
+# Directories
+consul_config_dir: "/etc/consul.d"
+consul_data_dir: "/opt/consul"
+consul_log_dir: "/var/log/consul"
+
+# Network configuration
+consul_bind_address: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+consul_client_address: "0.0.0.0"
+
+# Ports
+consul_ports:
+  dns: 8600
+  http: 8500
+  https: 8501
+  grpc: 8502
+  serf_lan: 8301
+  serf_wan: 8302
+  server: 8300
+
+# Cluster configuration
+consul_node_role: "client"  # client or server
+consul_bootstrap_expect: 3  # for server mode
+consul_ui_enabled: false
+
+# Logging
+consul_log_level: "INFO"
+consul_enable_syslog: true
+consul_log_rotate_bytes: 0
+consul_log_rotate_duration: "24h"
+consul_log_rotate_max_files: 30
+
+# Performance
+consul_performance:
+  raft_multiplier: 1
+
+# Security
+consul_encrypt_enabled: false
+consul_tls_enabled: false
+consul_acl_enabled: false
+
+# Connect/Service Mesh
+consul_connect_enabled: false
+
+# Script checks
+consul_enable_script_checks: true
+consul_enable_local_script_checks: true
+
+# Telemetry
+consul_telemetry_enabled: false
+consul_telemetry_prometheus_retention_time: "60s"
+
+# Additional configuration files
+consul_additional_configs: []
+
+# Cleanup options
+reset_consul_data: false
+clear_consul_config: false
+
+# Datacenter and environment
+datacenter: "dc1"
+environment: "production"
+

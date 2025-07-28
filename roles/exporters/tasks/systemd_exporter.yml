@@ -1,0 +1,63 @@
+---
+- name: Systemd Exporter | Create system user
+  ansible.builtin.user:
+    name: "{{ systemd_exporter_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/systemd_exporter
+    create_home: false
+    comment: "Systemd Exporter service user"
+  tags: [systemd_exporter, users]
+
+- name: Systemd Exporter | Copy binary from repository
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../repo/bin/systemd_exporter"
+    dest: "{{ systemd_exporter_binary_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+    backup: true
+  notify: restart systemd_exporter
+  tags: [systemd_exporter, binary]
+
+- name: Systemd Exporter | Create systemd service
+  ansible.builtin.template:
+    src: systemd_exporter.service.j2
+    dest: /etc/systemd/system/systemd_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify:
+    - reload systemd
+    - restart systemd_exporter
+  tags: [systemd_exporter, systemd]
+
+- name: Systemd Exporter | Start and enable service
+  ansible.builtin.systemd:
+    name: systemd_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: [systemd_exporter, service]
+
+- name: Systemd Exporter | Wait for service to be ready
+  ansible.builtin.wait_for:
+    port: "{{ exporter_ports.systemd_exporter }}"
+    host: "{{ ansible_host }}"
+    delay: 2
+    timeout: 30
+  tags: [systemd_exporter, health_check]
+
+- name: Systemd Exporter | Register service in Consul
+  ansible.builtin.template:
+    src: consul_services/systemd_exporter.hcl.j2
+    dest: /etc/consul.d/systemd_exporter.hcl
+    owner: consul
+    group: consul
+    mode: '0644'
+    backup: true
+  notify: reload consul
+  when: enable_consul_registration | default(true)
+  tags: [systemd_exporter, consul_registration]
+

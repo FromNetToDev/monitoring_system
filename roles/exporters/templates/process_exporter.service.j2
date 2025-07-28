@@ -1,0 +1,34 @@
+[Unit]
+Description=Prometheus Process Exporter
+Documentation=https://github.com/ncabatoff/process-exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=process_exporter
+Group=process_exporter
+
+# ПРАВИЛЬНЫЙ формат: 0.0.0.0:9256 или localhost:9256
+ExecStart=/usr/local/bin/process_exporter \
+  -config.path=/etc/process_exporter/config.yml \
+  -web.listen-address=0.0.0.0:9256
+
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=process_exporter
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

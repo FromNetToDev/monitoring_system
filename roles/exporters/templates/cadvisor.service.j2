@@ -1,0 +1,45 @@
+[Unit]
+Description=cAdvisor (Container Advisor)
+Documentation=https://github.com/google/cadvisor
+After=docker.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+TimeoutStartSec=60
+Restart=always
+RestartSec=10
+
+ExecStartPre=-/usr/bin/docker stop cadvisor
+ExecStartPre=-/usr/bin/docker rm cadvisor
+
+ExecStart=/usr/bin/docker run \
+  --rm \
+  --name=cadvisor \
+  --publish={{ cadvisor_port }}:8080 \
+{% for volume in cadvisor_docker_volumes %}
+  --volume={{ volume }} \
+{% endfor %}
+  --privileged \
+  --device=/dev/kmsg \
+{% if cadvisor_config | length > 0 %}
+  --volume=/etc/cadvisor/config.yml:/etc/cadvisor/config.yml:ro \
+{% endif %}
+{% for arg in cadvisor_extra_args %}
+  {{ arg }} \
+{% endfor %}
+  {{ cadvisor_image }}:{{ cadvisor_version }}
+
+ExecStop=/usr/bin/docker stop cadvisor
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cadvisor
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+

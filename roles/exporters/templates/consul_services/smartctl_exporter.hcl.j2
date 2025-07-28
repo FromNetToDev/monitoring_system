@@ -1,0 +1,40 @@
+service {
+  name = "smartctl_exporter"
+  id   = "smartctl_exporter_{{ inventory_hostname }}"
+  
+  address = "{{ ansible_host }}"
+  port    = {{ exporter_ports.smartctl_exporter | default(9633) }}
+  
+  tags = [
+    {% for group in group_names %}
+    "{{ group }}",
+    {% endfor %}
+    {% for tag in consul_service_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    {% for tag in custom_tags %}
+    "{{ tag }}",
+    {% endfor %}
+    "smartctl_exporter", "hardware", "disks"
+  ]
+
+  meta = {
+    version      = "{{ smartctl_exporter_version | default('latest') }}"
+    datacenter   = "{{ datacenter | default('dc1') }}"
+    environment  = "{{ environment }}"
+    ansible_host = "{{ inventory_hostname }}"
+    installed_at = "{{ ansible_date_time.iso8601 }}"
+  }
+
+  check {
+    id       = "smartctl_exporter_metrics"
+    name     = "Smartctl Exporter Metrics Endpoint"
+    http     = "http://{{ ansible_host }}:{{ exporter_ports.smartctl_exporter | default(9633) }}/metrics"
+    method   = "GET"
+    interval = "{{ consul_check_interval }}"
+    timeout  = "{{ consul_check_timeout }}"
+    
+    deregister_critical_service_after = "{{ consul_deregister_critical_after }}"
+  }
+}
+
