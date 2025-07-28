@@ -1,0 +1,68 @@
+# Global variables for all hosts
+
+# Consul Configuration
+consul_cluster_address: "10.10.0.100"
+datacenter: "tsc"
+reset_consul_data: true
+clear_consul_config: true
+consul_servers:
+  - 10.10.0.81
+  - 10.10.0.82
+  - 10.10.0.83
+
+# Environment
+environment: "production"
+
+# Global exporter settings
+enable_consul_registration: true
+exporter_backup_configs: true
+exporter_log_level: "info"
+
+# Exporters
+enabled_exporters:
+  - node_exporter
+  - systemd_exporter
+  - process_exporter
+
+exporter_ports:
+  node_exporter: 9100
+  systemd_exporter: 9558
+  process_exporter: 9256
+  cadvisor: 8020
+  clickhouse_exporter: 9363
+  smartctl_exporter: 9633
+  redfish_exporter: 9610
+
+# cAdvisor Configuration
+cadvisor_port: 8020
+cadvisor_version: "v0.47.2"
+
+# ClickHouse Exporter Configuration  
+clickhouse_exporter_port: 9363
+clickhouse_exporter_version: "0.1.0"
+clickhouse_server_host: "localhost"
+clickhouse_server_port: 8123
+check_clickhouse_server: true
+
+# Process Exporter
+process_exporter_processes:
+  - name: "sshd"
+    cmdline:
+      - "sshd"
+  - name: "systemd"
+    cmdline:
+      - "systemd"
+
+# Consul service registration
+consul_service_tags:
+  - "{{ environment }}"
+  - "monitoring"
+  - "prometheus"
+  - "exporter"
+
+consul_check_interval: "30s"
+consul_check_timeout: "10s"
+consul_deregister_critical_after: "10m"
+
+# Custom tags (can be overridden in group_vars)
+custom_tags: []
